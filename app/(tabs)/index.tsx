@@ -1,43 +1,53 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, ScrollView, StatusBar, StyleSheet, Text } from 'react-native';
 import Botao from '../../components/Botao';
 
 export default function Home() {
   const router = useRouter();
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={true}
+      scrollEventThrottle={16}>
       <StatusBar barStyle="light-content" backgroundColor="#023e8a" />
-      <Ionicons name="home" size={48} color="#023e8a" style={{ marginBottom: 10 }} />
+      <Ionicons name="home" size={isTablet ? 72 : 48} color="#023e8a" style={{ marginBottom: isTablet ? 20 : 10 }} />
       <Text style={styles.titulo}>Caminhoneiros App</Text>
       <Text style={styles.subtitulo}>Escolha uma opção:</Text>
       <Botao texto="Buscar por Placa" onPress={() => router.push('/buscaplaca')} />
       <Botao texto="Cadastrar Motorista" onPress={() => router.push('/cadastromotorista')} />
       <Botao texto="Listar Motorista" onPress={() => router.push('/listacadastro')} />
-    </View>
+    </ScrollView>
   );
 }
 
+const { width, height } = Dimensions.get('window');
+const isTablet = width >= 768;
+
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
+    minHeight: height,
     backgroundColor: '#78BBFF', // azul bem claro
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: isTablet ? 40 : 24,
+    paddingTop: isTablet ? 60 : 40,
   },
   titulo: {
-    fontSize: 32,
+    fontSize: isTablet ? 48 : 32,
     fontWeight: 'bold',
     color: '#032E64', // azul escuro
-    marginBottom: 10,
+    marginBottom: isTablet ? 16 : 10,
     textAlign: 'center',
+    width: isTablet ? '80%' : '100%',
   },
   subtitulo: {
-    fontSize: 18,
+    fontSize: isTablet ? 24 : 18,
     color: '#032E64', // azul claro
-    marginBottom: 30,
+    marginBottom: isTablet ? 40 : 30,
     textAlign: 'center',
+    width: isTablet ? '80%' : '100%',
   },
 });

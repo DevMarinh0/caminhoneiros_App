@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Dimensions, Pressable, StyleSheet, Text } from 'react-native';
 
 type BotaoProps = {
   texto: string;
@@ -13,19 +13,24 @@ export default function Botao({ texto, onPress }: BotaoProps) {
   );
 }
 
+const { width } = Dimensions.get('window');
+const isTablet = width >= 768;
+
 const styles = StyleSheet.create({
   botao: {
     backgroundColor: '#023e8a', // azul escuro
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 16,
-    marginVertical: 12,
+    paddingVertical: isTablet ? 20 : 16,
+    paddingHorizontal: isTablet ? 48 : 32,
+    borderRadius: isTablet ? 20 : 16,
+    marginVertical: isTablet ? 16 : 12,
+    width: isTablet ? '60%' : '100%',
     elevation: 4,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.15,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 6,
+    alignSelf: 'center',
   },
   botaoPressionado: {
     backgroundColor: '#48cae4', // azul claro
@@ -34,7 +39,7 @@ const styles = StyleSheet.create({
   texto: {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: 18,
+    fontSize: isTablet ? 22 : 18,
     letterSpacing: 1,
   },
 });

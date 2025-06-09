@@ -4,11 +4,10 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Button, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { getFullUrl } from '../../utils/config';
+
 const { width } = Dimensions.get('window');
 const isTablet = width >= 768;
-
-//const API_URL = 'http://localhost:3333';
-const API_URL = 'http://192.168.0.25:3333'; 
 
 export default function CadastroMotorista() {
   const [transportadora, setTransportadora] = useState('');
@@ -32,8 +31,10 @@ export default function CadastroMotorista() {
   async function escolherFotos() {
     const result = await ImagePicker.launchImageLibraryAsync({
       allowsMultipleSelection: true,
-      quality: 1,
+      quality: 1, // Máxima qualidade (1 = 100%)
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false, // Não permitir edição para manter qualidade original
+      exif: true, // Preservar metadados EXIF
     });
     if (!result.canceled) {
       const novas = result.assets.map((asset) => asset.uri);
@@ -43,22 +44,59 @@ export default function CadastroMotorista() {
 
   async function uploadFotosSelecionadas(): Promise<string[]> {
     if (fotos.length === 0) return [];
+
+    // Mostrar alerta de progresso para arquivos grandes
+    if (fotos.length > 2) {
+      Alert.alert(
+        "Enviando fotos",
+        "Estamos enviando suas fotos em alta qualidade. Isso pode levar alguns instantes..."
+      );
+    }
+
     const formData = new FormData();
     fotos.forEach((uri, idx) => {
       const nomeArquivo = uri.split('/').pop() || `foto${idx}.jpg`;
+
+      // Determinar o tipo MIME correto baseado na extensão do arquivo
+      let type = 'image/jpeg';
+      if (nomeArquivo.toLowerCase().endsWith('.png')) {
+        type = 'image/png';
+      } else if (nomeArquivo.toLowerCase().endsWith('.gif')) {
+        type = 'image/gif';
+      } else if (nomeArquivo.toLowerCase().endsWith('.heic')) {
+        type = 'image/heic';
+      }
+
       formData.append('fotos', {
         uri,
         name: nomeArquivo,
-        type: 'image/jpeg',
+        type: type,
       } as any);
+
+      console.log(`Preparando upload: ${nomeArquivo} (${type})`);
     });
-    const resp = await fetch(`${API_URL}/upload`, {
-      method: 'POST',
-      body: formData
-    });
-    if (!resp.ok) throw new Error('Erro ao fazer upload das fotos');
-    const data = await resp.json();
-    return data.urls || [];
+
+    try {
+      const resp = await fetch(getFullUrl('/upload'), {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Accept': 'application/json',
+        }
+      });
+
+      if (!resp.ok) {
+        const errorData = await resp.json();
+        throw new Error(errorData.message || 'Erro ao fazer upload das fotos');
+      }
+
+      const data = await resp.json();
+      console.log('Upload concluído com sucesso:', data);
+      return data.urls || [];
+    } catch (error: any) {
+      console.error('Erro no upload:', error);
+      throw new Error(`Erro ao fazer upload das fotos: ${error.message}`);
+    }
   }
 
   async function salvarCadastro() {
@@ -80,7 +118,7 @@ export default function CadastroMotorista() {
         fotos: urlsFotos,
         dataCadastro,
       };
-      const resp = await fetch(`${API_URL}/cadastros`, {
+      const resp = await fetch(getFullUrl('/cadastros'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(novoCadastro),
@@ -130,19 +168,22 @@ export default function CadastroMotorista() {
         </View>
       </Modal>
 
-      <ScrollView contentContainerStyle={[styles.container, { flexGrow: 1, minHeight: '100%' }]}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={true}
+        scrollEventThrottle={16}>
         <View style={styles.voltarContainer}>
           <Pressable
-          onPress={() => router.push('/')}
-          style={({ pressed }) => [
-            styles.botaoCircular,
-            pressed && styles.botaoCircularAtivo
-          ]}
-        >
-          <Ionicons name="arrow-back" size={28} color="#023e8a" />
+            onPress={() => router.push('/')}
+            style={({ pressed }) => [
+              styles.botaoCircular,
+              pressed && styles.botaoCircularAtivo
+            ]}
+          >
+            <Ionicons name="arrow-back" size={isTablet ? 36 : 28} color="#023e8a" />
           </Pressable>
         </View>
-        <Ionicons name="person-add" size={48} color="#023e8a" style={{ marginBottom: 10 }} />
+        <Ionicons name="person-add" size={isTablet ? 72 : 48} color="#023e8a" style={{ marginBottom: isTablet ? 20 : 10 }} />
         <Text style={styles.titulo}>Cadastro de Motorista</Text>
         <TextInput placeholder="Transportadora" style={styles.input} value={transportadora} onChangeText={setTransportadora} />
         <TextInput placeholder="Nome Completo do Motorista" style={styles.input} value={nome} onChangeText={setNome} />
@@ -168,21 +209,37 @@ export default function CadastroMotorista() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 25, alignItems: 'center', backgroundColor: '#78BBFF', flex: 1, justifyContent: 'center' },
+  container: {
+    padding: 25,
+    alignItems: 'center',
+    backgroundColor: '#78BBFF',
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingBottom: 50, // Adiciona espaço extra no final para dispositivos menores
+  },
   voltarContainer: {
     alignSelf: 'flex-start',
     marginBottom: 10,
+    marginTop: 40, // Adiciona espaço no topo para melhor visualização
+    width: '100%',
   },
-  titulo: { fontSize: 24, fontWeight: 'bold', color: '#fff', marginBottom: 24, textAlign: 'center' },
+  titulo: {
+    fontSize: isTablet ? 36 : 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: isTablet ? 32 : 24,
+    textAlign: 'center',
+    width: isTablet ? '80%' : '100%',
+  },
   input: {
     width: isTablet ? '70%' : '100%',
-    padding: 14,
+    padding: isTablet ? 18 : 14,
     borderWidth: 1,
     borderColor: '#90e0ef',
-    borderRadius: 10,
-    marginBottom: 16,
+    borderRadius: isTablet ? 14 : 10,
+    marginBottom: isTablet ? 24 : 16,
     backgroundColor: '#fff',
-    fontSize: 16,
+    fontSize: isTablet ? 20 : 16,
   },
   botaoContainer: { width: isTablet ? '70%' : '100%', marginBottom: 16 },
   fotosContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, justifyContent: 'center' },
@@ -218,19 +275,19 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   botaoCircular: {
-  width: 48,
-  height: 48,
-  borderRadius: 24,
-  backgroundColor: '#fff',
-  justifyContent: 'center',
-  alignItems: 'center',
-  shadowColor: '#000',
-  shadowOpacity: 0.08,
-  shadowOffset: { width: 0, height: 2 },
-  shadowRadius: 4,
-  elevation: 2,
-},
-botaoCircularAtivo: {
-  backgroundColor: '#90e0ef',
-},
+    width: isTablet ? 60 : 48,
+    height: isTablet ? 60 : 48,
+    borderRadius: isTablet ? 30 : 24,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  botaoCircularAtivo: {
+    backgroundColor: '#90e0ef',
+  },
 });

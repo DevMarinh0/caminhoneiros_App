@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
 import { useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { useEffect, useState } from 'react';
-import { Dimensions, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Dimensions, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { API_URL } from '../../utils/config';
 
 const { width } = Dimensions.get('window');
 const isTablet = width >= 768;
-//const API_URL = 'http://localhost:3333';
-const API_URL = 'http://192.168.0.25:3333'; 
 
 export default function ListaCadastro() {
   const [cadastros, setCadastros] = useState<any[]>([]);
@@ -49,19 +50,22 @@ export default function ListaCadastro() {
         </View>
       </Modal>
 
-      <ScrollView contentContainerStyle={[styles.container, { flexGrow: 1, minHeight: '100%' }]}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={true}
+        scrollEventThrottle={16}>
         <View style={styles.voltarContainer}>
           <Pressable
-          onPress={() => router.push('/')}
-          style={({ pressed }) => [
-            styles.botaoCircular,
-            pressed && styles.botaoCircularAtivo
-          ]}
-        >
-        <Ionicons name="arrow-back" size={28} color="#023e8a" />
-        </Pressable>
-      </View>
-        <Ionicons name="list" size={48} color="#023e8a" style={{ marginBottom: 10 }} />
+            onPress={() => router.push('/')}
+            style={({ pressed }) => [
+              styles.botaoCircular,
+              pressed && styles.botaoCircularAtivo
+            ]}
+          >
+            <Ionicons name="arrow-back" size={isTablet ? 36 : 28} color="#023e8a" />
+          </Pressable>
+        </View>
+        <Ionicons name="list" size={isTablet ? 72 : 48} color="#023e8a" style={{ marginBottom: isTablet ? 20 : 10 }} />
         <Text style={styles.titulo}>Todos os Cadastros</Text>
         {cadastros.length === 0 && <Text style={styles.info}>Nenhum cadastro encontrado</Text>}
         {cadastros.map((c, idx) => (
@@ -84,16 +88,64 @@ export default function ListaCadastro() {
             <View style={styles.botaoContainer}>
               <Pressable
                 style={({ pressed }) => [styles.botaoPDF, pressed && styles.botaoPDFAtivo]}
-                onPress={() => {
+                onPress={async () => {
                   const url = `${API_URL}/pdf/${c.id}`;
                   if (Platform.OS === 'web') {
                     window.open(url, '_blank');
                   } else {
-                    Linking.openURL(url);
+                    try {
+                      Alert.alert(
+                        "Download iniciado",
+                        "O PDF está sendo baixado, aguarde um momento..."
+                      );
+
+                      // Usar o diretório de cache que é acessível para compartilhamento
+                      const fileUri = FileSystem.cacheDirectory + `cadastro_${c.id}.pdf`;
+
+                      // Baixar o arquivo
+                      await FileSystem.downloadAsync(url, fileUri);
+                      console.log('Arquivo baixado para:', fileUri);
+
+                      // Verificar se o compartilhamento está disponível
+                      const isAvailable = await Sharing.isAvailableAsync();
+
+                      if (isAvailable) {
+                        // Compartilhar o arquivo (permite salvar em Downloads)
+                        await Sharing.shareAsync(fileUri, {
+                          mimeType: 'application/pdf',
+                          dialogTitle: `Cadastro ${c.id}`,
+                          UTI: 'com.adobe.pdf' // para iOS
+                        });
+                      } else {
+                        // Fallback para dispositivos que não suportam compartilhamento
+                        Alert.alert(
+                          "Visualizar PDF",
+                          "O PDF foi baixado, mas não é possível compartilhá-lo neste dispositivo.",
+                          [
+                            {
+                              text: "OK",
+                              onPress: () => Linking.openURL(url)
+                            }
+                          ]
+                        );
+                      }
+                    } catch (error) {
+                      console.error('Erro ao processar o PDF:', error);
+                      Alert.alert(
+                        "Erro",
+                        "Ocorreu um erro ao processar o PDF. Tentando método alternativo...",
+                        [
+                          {
+                            text: "OK",
+                            onPress: () => Linking.openURL(url)
+                          }
+                        ]
+                      );
+                    }
                   }
                 }}
               >
-                <Ionicons name="document" size={22} color="#fff" />
+                <Ionicons name="document" size={isTablet ? 28 : 22} color="#fff" />
                 <Text style={styles.textoBotaoPDF}>Gerar PDF</Text>
               </Pressable>
             </View>
@@ -105,13 +157,27 @@ export default function ListaCadastro() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 24, alignItems: 'center', backgroundColor: '#78BBFF', flexGrow: 1, flex: 1, justifyContent: 'flex-start', },
+  container: {
+    padding: 24,
+    alignItems: 'center',
+    backgroundColor: '#78BBFF',
+    flexGrow: 1,
+    justifyContent: 'flex-start',
+    paddingBottom: 50, // Adiciona espaço extra no final para dispositivos menores
+  },
   voltarContainer: {
     alignSelf: 'flex-start',
     marginBottom: 10,
     marginTop: 40,
   },
-  titulo: { fontSize: 24, fontWeight: 'bold', color: '#fff', marginBottom: 24, textAlign: 'center' },
+  titulo: {
+    fontSize: isTablet ? 36 : 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: isTablet ? 32 : 24,
+    textAlign: 'center',
+    width: isTablet ? '80%' : '100%',
+  },
   card: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -123,10 +189,25 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 6,
     elevation: 2,
+    alignSelf: 'center', // Garante centralização em diferentes tamanhos de tela
   },
-  nome: { fontSize: 20, fontWeight: 'bold', color: '#023e8a', marginBottom: 6 },
-  info: { fontSize: 16, color: '#023e8a', marginBottom: 2 },
-  fotosContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
+  nome: {
+    fontSize: isTablet ? 26 : 20,
+    fontWeight: 'bold',
+    color: '#023e8a',
+    marginBottom: isTablet ? 10 : 6
+  },
+  info: {
+    fontSize: isTablet ? 20 : 16,
+    color: '#023e8a',
+    marginBottom: isTablet ? 4 : 2
+  },
+  fotosContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 10,
+    width: '100%', // Garante que o container ocupe toda a largura disponível
+  },
   foto: { width: isTablet ? 120 : 80, height: isTablet ? 120 : 80, borderRadius: 8, marginRight: 8, marginBottom: 8, borderWidth: 1, borderColor: '#90e0ef' },
   // Estilos do modal:
   modalContainer: {
@@ -159,43 +240,43 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   botaoCircular: {
-  width: 48,
-  height: 48,
-  borderRadius: 24,
-  backgroundColor: '#fff',
-  justifyContent: 'center',
-  alignItems: 'center',
-  shadowColor: '#000',
-  shadowOpacity: 0.08,
-  shadowOffset: { width: 0, height: 2 },
-  shadowRadius: 4,
-  elevation: 2,
-},
-botaoCircularAtivo: {
-  backgroundColor: '#90e0ef',
-},
-botaoContainer: {
-  flexDirection: 'row',
-  justifyContent: 'flex-end',
-  marginTop: 10,
-},
-botaoPDF: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: '#b40000',
-  paddingVertical: 10,
-  borderRadius: 8,
-  marginTop: 10,
-  paddingHorizontal: 16,
-},
-botaoPDFAtivo: {
-  backgroundColor: '#fe0702',
-},
-textoBotaoPDF: {
-  color: '#fff',
-  fontWeight: 'bold',
-  marginLeft: 8,
-  fontSize: 16,
-},
+    width: isTablet ? 60 : 48,
+    height: isTablet ? 60 : 48,
+    borderRadius: isTablet ? 30 : 24,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  botaoCircularAtivo: {
+    backgroundColor: '#90e0ef',
+  },
+  botaoContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 10,
+  },
+  botaoPDF: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#b40000',
+    paddingVertical: isTablet ? 14 : 10,
+    borderRadius: isTablet ? 12 : 8,
+    marginTop: isTablet ? 14 : 10,
+    paddingHorizontal: isTablet ? 24 : 16,
+  },
+  botaoPDFAtivo: {
+    backgroundColor: '#fe0702',
+  },
+  textoBotaoPDF: {
+    color: '#fff',
+    fontWeight: 'bold',
+    marginLeft: isTablet ? 12 : 8,
+    fontSize: isTablet ? 20 : 16,
+  },
 });
