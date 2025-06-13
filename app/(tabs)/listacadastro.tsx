@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useState } from 'react';
 import { Alert, Dimensions, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { API_URL } from '../../utils/config';
+import { API_URL, getFullUrl } from '../../utils/config';
 
 const { width } = Dimensions.get('window');
 const isTablet = width >= 768;
@@ -12,22 +12,59 @@ const isTablet = width >= 768;
 export default function ListaCadastro() {
   const [cadastros, setCadastros] = useState<any[]>([]);
   const [fotoSelecionada, setFotoSelecionada] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(false);
   const router = useRouter();
 
+  const buscarCadastros = async () => {
+    try {
+      const response = await fetch(getFullUrl('/cadastros'));
+      const data = await response.json();
+      setCadastros(data);
+    } catch (error) {
+      console.error('Erro ao buscar cadastros:', error);
+      setCadastros([]);
+    }
+  };
+
   useEffect(() => {
-    const buscarCadastros = async () => {
-      try {
-        const response = await fetch(`${API_URL}/cadastros`);
-        const data = await response.json();
-        setCadastros(data);
-      } catch {
-        setCadastros([]);
-      }
-    };
     buscarCadastros();
     const interval = setInterval(buscarCadastros, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const excluirCadastro = async (id: number) => {
+    Alert.alert(
+      "Confirmar exclusão",
+      "Tem certeza que deseja excluir este cadastro? Esta ação não pode ser desfeita.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { 
+          text: "Excluir", 
+          style: "destructive",
+          onPress: async () => {
+            setCarregando(true);
+            try {
+              const response = await fetch(getFullUrl(`/cadastros/${id}`), {
+                method: 'DELETE',
+              });
+              
+              if (!response.ok) {
+                throw new Error('Erro ao excluir cadastro');
+              }
+              
+              Alert.alert("Sucesso", "Cadastro excluído com sucesso!");
+              buscarCadastros(); // Atualiza a lista
+            } catch (error) {
+              console.error('Erro ao excluir:', error);
+              Alert.alert("Erro", "Não foi possível excluir o cadastro. Tente novamente.");
+            } finally {
+              setCarregando(false);
+            }
+          }
+        }
+      ]
+    );
+  };
 
   return (
     <>
@@ -70,7 +107,21 @@ export default function ListaCadastro() {
         {cadastros.length === 0 && <Text style={styles.info}>Nenhum cadastro encontrado</Text>}
         {cadastros.map((c, idx) => (
           <View key={idx} style={styles.card}>
-            <Text style={styles.nome}>{c.nome}</Text>
+            {/* Cabeçalho do card com botão de excluir */}
+            <View style={styles.cardHeader}>
+              <Text style={styles.nome}>{c.nome}</Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.botaoExcluir,
+                  pressed && styles.botaoExcluirAtivo
+                ]}
+                onPress={() => excluirCadastro(c.id)}
+                disabled={carregando}
+              >
+                <Ionicons name="trash-outline" size={isTablet ? 24 : 20} color="#fff" />
+              </Pressable>
+            </View>
+            
             <Text style={styles.info}>Transportadora: {c.transportadora}</Text>
             <Text style={styles.info}>Placa do Cavalo: {c.placa}</Text>
             <Text style={styles.info}>Destino: {c.destino}</Text>
@@ -89,7 +140,7 @@ export default function ListaCadastro() {
               <Pressable
                 style={({ pressed }) => [styles.botaoPDF, pressed && styles.botaoPDFAtivo]}
                 onPress={async () => {
-                  const url = `${API_URL}/pdf/${c.id}`;
+                  const url = getFullUrl(`/pdf/${c.id}`);
                   if (Platform.OS === 'web') {
                     window.open(url, '_blank');
                   } else {
@@ -191,11 +242,17 @@ const styles = StyleSheet.create({
     elevation: 2,
     alignSelf: 'center', // Garante centralização em diferentes tamanhos de tela
   },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: isTablet ? 10 : 6,
+  },
   nome: {
     fontSize: isTablet ? 26 : 20,
     fontWeight: 'bold',
     color: '#023e8a',
-    marginBottom: isTablet ? 10 : 6
+    flex: 1,
   },
   info: {
     fontSize: isTablet ? 20 : 16,
@@ -208,7 +265,15 @@ const styles = StyleSheet.create({
     marginTop: 10,
     width: '100%', // Garante que o container ocupe toda a largura disponível
   },
-  foto: { width: isTablet ? 120 : 80, height: isTablet ? 120 : 80, borderRadius: 8, marginRight: 8, marginBottom: 8, borderWidth: 1, borderColor: '#90e0ef' },
+  foto: { 
+    width: isTablet ? 120 : 80, 
+    height: isTablet ? 120 : 80, 
+    borderRadius: 8, 
+    marginRight: 8, 
+    marginBottom: 8, 
+    borderWidth: 1, 
+    borderColor: '#90e0ef' 
+  },
   // Estilos do modal:
   modalContainer: {
     flex: 1,
@@ -278,5 +343,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: isTablet ? 12 : 8,
     fontSize: isTablet ? 20 : 16,
+  },
+  botaoExcluir: {
+    backgroundColor: '#d11a2a',
+    width: isTablet ? 44 : 36,
+    height: isTablet ? 44 : 36,
+    borderRadius: isTablet ? 22 : 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  botaoExcluirAtivo: {
+    backgroundColor: '#ff3b30',
   },
 });

@@ -18,8 +18,8 @@ model Cadastro {
 }
 
 model Foto {
-  id         Int    @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   url        String
-  cadastro   Cadastro @relation(fields: [cadastroId], references: [id])
+  cadastro   Cadastro @relation(fields: [cadastroId], references: [id], onDelete: Cascade)
   cadastroId Int
 }
