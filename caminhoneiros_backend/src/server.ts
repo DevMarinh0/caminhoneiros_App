@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'path';
 import cadastroRoutes from './routes/cadastro.routes';
 import pdfRoutes from './routes/pdf.routes';
+//import resetRoutes from './routes/reset.routes';
 import uploadRoutes from './routes/upload.routes';
 
 const app = express();
@@ -15,6 +16,7 @@ app.use('/cadastros', cadastroRoutes);
 app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 app.use('/upload', uploadRoutes);
 app.use('/pdf', pdfRoutes);
+//app.use('/reset-tudo', resetRoutes);
 
 app.listen(3333, () => {
   console.log('Servidor esta rodando Na Porta 3333');
